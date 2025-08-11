@@ -27,18 +27,18 @@ unsafe fn connect_chain<'a>(
     center: Option<&'a UnsafeCell<Link<'a>>>,
     r_chain: Option<&'a UnsafeCell<Link<'a>>>,
 ) {
-    let c = center.unwrap().get();
-    (*c).start = center;
-    (*c).end = center;
+    unsafe {
+        let c = center.unwrap().get();
+        (*c).start = center;
+        (*c).end = center;
 
-    let calc_repeats = (u32::MAX >> (32 - (*c).contr)) as i32;
-    (*c).contr = calc_repeats;
-    (*c).lap = calc_repeats;
-    (*c).len = calc_repeats;
-    let l_valid = { l_chain.is_some() && (*l_chain.unwrap().get()).start.is_some() };
-    let r_valid = { r_chain.is_some() && (*r_chain.unwrap().get()).start.is_some() };
-    match (l_valid, r_valid) {
-        (true, true) => {
+        let calc_repeats = (u32::MAX >> (32 - (*c).contr)) as i32;
+        (*c).contr = calc_repeats;
+        (*c).lap = calc_repeats;
+        (*c).len = calc_repeats;
+        let l_valid = { l_chain.is_some() && (*l_chain.unwrap().get()).start.is_some() };
+        let r_valid = { r_chain.is_some() && (*r_chain.unwrap().get()).start.is_some() };
+        if (l_valid && r_valid) {
             let l = l_chain.unwrap().get();
             let r = r_chain.unwrap().get();
             let l_start = (*l).start.unwrap().get();
@@ -52,80 +52,60 @@ unsafe fn connect_chain<'a>(
 
             let l_add_val = ((*l).len - (*l).contr) * (*c).contr; // All combos with left and center (no left solo)
             let r_add_val = ((*r).len - (*r).contr) * (*c).contr; // All combos with right and center (no right solo)
-            let l_contr_add = (*l_start).contr * (*r).len;
-            let r_contr_add = (*r_end).contr * (*l).len;
-            // Contribution when including center AND BOTH ENDS // NEEDS TO BE UPDATED INVALID CALCULATION (FINDING SMALLER OVERLAP)
-            // Contribution when including INDIVIDUAL ENDS and CENTER
-            let l_center_contr_add = ((*l_start).contr - (*l).lap) * (*c).contr
+
+            let l_contr_add = ((*l_start).contr - (*l).lap) * (*c).contr + (*l_start).contr * (*r).len // When center is in
                 + ((*l_start).contr - (*l).lap) * ((*r).len - (*r).contr) * (*c).contr;
-            let r_center_contr_add = ((*r_end).contr - (*r).lap) * (*c).contr
-                + ((*r_end).contr - (*r).lap) * ((*l).len - (*l).contr) * (*c).contr; // This is 0 (and should be)
+            let r_contr_add = ((*r_end).contr - (*r).lap) * (*c).contr + (*r_end).contr * (*l).len // When center is in
+                + ((*r_end).contr - (*r).lap) * ((*l).len - (*l).contr) * (*c).contr;
 
-            // Calculates all possible lapping from end to end (I believe) if added togehter
-            let basic_ends_lap = (*l_start).contr * (*r_end).contr;
-            let center_ends_lap =
-                (((*l_start).contr - (*l).lap) * ((*r_end).contr - (*r).lap)) * (*c).contr; // Left lap with just center
+            // Calculates all possible lapping from end to end if added togehter
+            let ends_lap = (*l_start).contr * (*r_end).contr
+                + (((*l_start).contr - (*l).lap) * ((*r_end).contr - (*r).lap)) * (*c).contr; // Left lap with just center
 
-            // This is All left and center * r_chain
-            // Split up like this l_chain solo + l_add_val (which is left and center combo) times right without rightmost
-            // And then + l_chain with right_most (can't have center) and + r_chain -> len is r_chain original length/contribution total
-            (*l_start).len += ((*l).len + l_add_val) * ((*r).len - (*r).contr)
-                + ((*l).len * (*r).contr)
-                + (*r).len
-                + (*c).contr
-                + l_add_val
-                + r_add_val; // This is a correct compuation for finding the # of of new items
-            // All tharust libraries for testing speedt is needed is a more accurate contribution count
+            (*l_start).len += ((*l).len + l_add_val) * ((*r).len - (*r).contr) // Left and center * (r-r.contr)
+                + ((*l).len * (*r).contr) // Left without center and r.contr
+                + (*r).len // All of right
+                + (*c).contr // All of center
+                + l_add_val // left with center
+                + r_add_val; // Right with center
             (*r_end).len = (*l_start).len;
 
-            (*r_end).lap = basic_ends_lap + center_ends_lap;
-            (*l_start).lap = basic_ends_lap + center_ends_lap;
+            (*r_end).lap = ends_lap;
+            (*l_start).lap = ends_lap;
+            (*r_end).contr += r_contr_add;
+            (*l_start).contr += l_contr_add;
+        } else if l_valid || r_valid {
+            let (far_end, added_value) = if l_valid {
+                let l = l_chain.unwrap().get();
+                (*c).start = (*l).start;
+                let added_value = ((*l).len - (*l).contr) * (*c).contr;
+                let l_start = (*l).start.unwrap().get();
+                (*l_start).end = center;
+                (l_start, added_value)
+            } else {
+                let r = r_chain.unwrap().get();
+                let added_value = ((*r).len - (*r).contr) * (*c).contr;
+                (*c).end = (*r).end;
+                (*r).start = center;
+                let r_end = (*r).end.unwrap().get();
+                (*r_end).start = center;
+                (r_end, added_value)
+            };
 
-            (*r_end).contr += r_contr_add + r_center_contr_add;
-            (*l_start).contr += l_contr_add + l_center_contr_add;
-        }
-        (true, _) => {
-            let l = l_chain.unwrap().get();
-            (*c).start = (*l).start;
-            let added_value = ((*l).len - (*l).contr) * (*c).contr;
-            let l = (*l).start.unwrap().get();
-            (*l).end = center;
-
-            (*c).lap = ((*l).contr - (*l).lap) * (*c).contr;
-            (*l).lap = (*c).lap;
-
-            (*c).contr += added_value;
-            (*l).contr += (*c).lap;
-
-            (*l).len += (*c).contr;
-            (*c).len = (*l).len;
-            (*l).end = center;
-        }
-        (_, true) => {
-            let r = r_chain.unwrap().get();
-            let added_value = ((*r).len - (*r).contr) * (*c).contr;
-
-            (*c).end = (*r).end;
-            (*r).start = center;
-
-            let r = (*r).end.unwrap().get();
-            (*r).start = center;
-
-            (*c).lap = ((*r).contr - (*r).lap) * (*c).contr;
-
-            (*r).lap = (*c).lap;
+            (*c).lap = ((*far_end).contr - (*far_end).lap) * (*c).contr;
+            (*far_end).lap = (*c).lap;
 
             (*c).contr += added_value;
-            (*r).contr += (*c).lap;
+            (*far_end).contr += (*c).lap;
 
-            (*r).len += (*c).contr;
-            (*c).len = (*r).len;
+            (*far_end).len += (*c).contr;
+            (*c).len = (*far_end).len;
+            (*far_end).end = center;
         }
-        (_, _) => {}
     }
 }
 
-fn beautiful_subsets(nums: Vec<i32>, k: i32) -> i32 {
+pub fn beautiful_subsets(nums: Vec<i32>, k: i32) -> i32 {
     let mut map: HashMap<i32, UnsafeCell<Link>> = HashMap::new();
 
     for i in nums.iter() {
