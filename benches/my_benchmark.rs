@@ -3,14 +3,9 @@ use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_m
 use rand::prelude::*;
 use std::iter;
 
-use crate::algorithms::algorithms::{beautiful_subsets_o_n, beautiful_subsets_shivam_aggarwal};
-
-static SEED: u64 = 15239478589816007421;
+use crate::algorithms::algorithms::{o_n_new_hash, shivam};
 
 fn beautiful_subsets(c: &mut Criterion) {
-    // Seed for reproducibility
-    let rng = SmallRng::seed_from_u64(SEED); // Used a random number generator to get some seed
-
     let mut beautiful_subsets = c.benchmark_group("Beautiful subsets ");
     let vec: Vec<i128> = (1..126).collect();
     let tests: Vec<(i128, &str)> = vec![
@@ -26,14 +21,15 @@ fn beautiful_subsets(c: &mut Criterion) {
         beautiful_subsets.bench_function(format!(" {test_name} my func"), |b| {
             b.iter(|| {
                 for set in set.chunks_exact(126) {
-                    beautiful_subsets_o_n(&set.to_vec(), k);
+                    o_n_new_hash(&set.to_vec(), k);
                 }
             })
         });
-        beautiful_subsets.bench_function(format!(" {test_name} shivam func"), |b| {
+
+        beautiful_subsets.bench_function(format!(" {test_name} Shivam Aggarwal func"), |b| {
             b.iter(|| {
                 for set in set.chunks_exact(126) {
-                    beautiful_subsets_shivam_aggarwal(&set.to_vec(), k);
+                    shivam(&set.to_vec(), k);
                 }
             })
         });

@@ -145,6 +145,7 @@ pub mod algorithms {
     pub fn beautiful_subsets_o_n(nums: &Vec<i128>, k: i128) -> i128 {
         let mut map: HashMap<i128, UnsafeCell<Link>> = HashMap::new();
         let mut vec: Vec<i128> = Vec::new();
+        let mut vals = [(false, 0, 0, 0, 0, 0); 128];
 
         for i in nums {
             map.entry(*i)
