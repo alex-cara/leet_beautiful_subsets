@@ -4,16 +4,23 @@ use rand::prelude::*;
 use std::iter;
 
 use crate::algorithms::algorithms::{o_n_new_hash, shivam};
+static SEED: u64 = 15239478589816006428;
 
 fn beautiful_subsets(c: &mut Criterion) {
+    let rng = SmallRng::seed_from_u64(SEED); // Used a random number generator to get some seed
     let mut beautiful_subsets = c.benchmark_group("Beautiful subsets ");
-    let vec: Vec<i128> = (1..126).collect();
+    let vec: Vec<i128> = rng
+        .random_iter()
+        .take(1000 * 126)
+        .map(|i: i128| ((i as u128 % 256) + 1) as i128)
+        .collect();
     let tests: Vec<(i128, &str)> = vec![
-        (1, "all overlapping"),
-        (2, "2 chunks"),
-        (8, "8 chunks"),
-        (64, "1 partner"),
-        (128, "No partners"),
+        (1, "k is 1"),
+        (2, "k is 2"),
+        (8, "k is 8"),
+        (32, "k is 32"),
+        (128, "k is 128"),
+        (300, "no chains"),
     ];
     let set = &vec;
 
